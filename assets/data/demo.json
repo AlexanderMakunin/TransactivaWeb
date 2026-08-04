@@ -1,0 +1,19 @@
+{
+  "customer": { "number": "C-DEMO", "name": "Cliente Demo", "email": "demo@example.com" },
+  "supplies": [
+    { "cups": "ES00DEMO0000000001AA", "address": "Suministro Demo · Jávea", "tariff": "2.0TD", "power": "9,00 kW", "status": "Activo", "latitude": 38.7891, "longitude": 0.1668, "consumptionShare": 0.36, "productionShare": 0.23, "surplusShare": 0.19, "batteryShare": 0.25, "comparisonAdjustment": -2.1 },
+    { "cups": "ES00DEMO0000000002BB", "address": "Instalación Solar Demo · Dénia", "tariff": "3.0TD", "power": "15,10 kW", "status": "Activo", "latitude": 38.8408, "longitude": 0.1057, "consumptionShare": 0.46, "productionShare": 0.65, "surplusShare": 0.72, "batteryShare": 0.61, "comparisonAdjustment": 1.4 },
+    { "cups": "ES00DEMO0000000003CC", "address": "Vivienda Demo · Ondara", "tariff": "2.0TD", "power": "5,75 kW", "status": "En revisión", "latitude": 38.8262, "longitude": 0.0175, "consumptionShare": 0.18, "productionShare": 0.12, "surplusShare": 0.09, "batteryShare": 0.14, "comparisonAdjustment": 3.2 }
+  ],
+  "periods": [
+    { "id": "2026-07", "label": "Julio 2026", "consumption": 8942.6, "production": 6714.2, "surplus": 2184.3, "battery": 186.2, "comparison": -8.4, "selfConsumption": 68, "series": { "consumption": [52,58,49,63,68,72,62,66,76,70,82,78,88,75], "production": [35,41,38,50,56,63,59,68,72,66,76,71,80,74], "surplus": [15,20,17,24,29,31,36,33,42,39,47,44,54,50] } },
+    { "id": "2026-06", "label": "Junio 2026", "consumption": 9762.4, "production": 6198.8, "surplus": 1948.6, "battery": 142.8, "comparison": 4.7, "selfConsumption": 62, "series": { "consumption": [62,57,68,65,75,70,78,81,74,86,83,79,91,87], "production": [31,38,35,46,52,57,55,62,65,61,68,64,71,69], "surplus": [12,17,15,21,25,28,27,34,32,39,37,43,41,46] } },
+    { "id": "2026-05", "label": "Mayo 2026", "consumption": 9318.1, "production": 5872.4, "surplus": 1726.2, "battery": 98.5, "comparison": 2.1, "selfConsumption": 59, "series": { "consumption": [58,64,61,69,72,67,76,79,82,77,85,89,84,91], "production": [28,34,32,41,46,51,48,56,59,54,63,60,67,65], "surplus": [10,13,17,15,21,24,22,29,27,33,36,34,40,43] } }
+  ],
+  "invoices": [
+    { "number": "FV-DEMO-0078", "cups": "ES00DEMO0000000001AA", "period": "01/07/2026 – 31/07/2026", "amount": 242.22, "status": "Pagada" },
+    { "number": "FV-DEMO-0071", "cups": "ES00DEMO0000000002BB", "period": "01/07/2026 – 31/07/2026", "amount": 518.36, "status": "Pendiente" },
+    { "number": "FV-DEMO-0063", "cups": "ES00DEMO0000000001AA", "period": "01/06/2026 – 30/06/2026", "amount": 268.74, "status": "Pagada" },
+    { "number": "FV-DEMO-0054", "cups": "ES00DEMO0000000003CC", "period": "01/05/2026 – 31/05/2026", "amount": 136.90, "status": "Pagada" }
+  ]
+}

@@ -1,0 +1,123 @@
+<!doctype html>
+<html lang="es">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="description" content="Prototipo del área privada de clientes de Transactiva">
+  <title>Área cliente · Transactiva</title>
+  <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" integrity="sha256-p4NxAoJBhIIN+hmNHrzRCf9tD/miZyoHS5obTRR9BMY=" crossorigin="">
+  <link rel="stylesheet" href="assets/css/main.css">
+  <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js" integrity="sha256-20nQCchB9co0qIjJZRGuk2/Z9VM+kNiyxNV1lvTlZBo=" crossorigin=""></script>
+</head>
+<body>
+  <header class="site-header">
+    <a class="logo" href="index.html" aria-label="Transactiva, inicio">
+      <span class="logo-symbol">T</span>
+      <span><strong>TRANSACTIVA</strong><small>Energy intelligence</small></span>
+    </a>
+    <button id="menuButton" class="menu-button" type="button" aria-label="Abrir menú">☰</button>
+    <nav id="mainNav" aria-label="Navegación principal">
+      <a class="active" href="#dashboard">Resumen</a>
+      <a href="#supplies">Suministros</a>
+      <a href="#invoices">Facturas</a>
+      <button id="profileButton" class="nav-button" type="button">Mi cuenta</button>
+    </nav>
+  </header>
+
+  <main id="dashboard">
+    <section class="hero">
+      <div>
+        <p class="kicker">Área privada · Datos de demostración</p>
+        <h1>Hola, <span id="customerFirstName">Cliente</span>.</h1>
+        <p class="hero-copy">Tu consumo, producción y facturación en una sola vista clara.</p>
+      </div>
+      <div class="updated"><i></i><span>Última actualización<strong>Hoy, 08:42</strong></span></div>
+    </section>
+
+    <section class="filters" aria-label="Selección de suministro y periodo">
+      <label>Suministro<select id="supplyFilter"></select></label>
+      <label>Periodo<select id="periodFilter"></select></label>
+      <button id="refreshButton" class="primary" type="button">Actualizar</button>
+    </section>
+
+    <section class="metrics" aria-label="Indicadores del periodo">
+      <article class="metric dark"><span class="metric-icon">ϟ</span><p>Consumo</p><strong id="consumptionMetric">—</strong><small id="consumptionComparison">—</small></article>
+      <article class="metric"><span class="metric-icon solar">☀</span><p>Producción solar</p><strong id="productionMetric">—</strong><small id="selfConsumptionMetric">—</small></article>
+      <article class="metric"><span class="metric-icon surplus">↗</span><p>Excedentes</p><strong id="surplusMetric">—</strong><small>Compensación estimada</small></article>
+      <article class="metric"><span class="metric-icon battery">▣</span><p>Batería virtual</p><strong id="batteryMetric">—</strong><small>Saldo disponible</small></article>
+    </section>
+
+    <section class="dashboard-grid">
+      <article class="panel chart-panel">
+        <div class="panel-heading">
+          <div><p class="kicker">Evolución</p><h2>Balance de energía</h2></div>
+          <div class="legend"><span><i class="consumption"></i>Consumo</span><span><i class="production"></i>Producción</span><span><i class="surplus"></i>Excedente</span></div>
+        </div>
+        <div id="energyChart" class="chart" role="img" aria-label="Gráfico mensual de energía"></div>
+      </article>
+      <article class="panel insight">
+        <p class="kicker">Lectura inteligente</p>
+        <h2>Tu energía este mes</h2>
+        <div class="score"><span id="solarScore">0</span><small>% solar</small></div>
+        <p id="insightText">Has cubierto una parte importante de tu consumo con producción propia.</p>
+        <button id="analysisButton" class="text-button" type="button">Ver análisis completo →</button>
+      </article>
+    </section>
+
+    <section id="supplies" class="section-block">
+      <div class="section-heading"><div><p class="kicker">Tus contratos</p><h2>Suministros</h2></div><span id="supplyCount" class="count"></span></div>
+      <div id="supplyCards" class="supply-grid"></div>
+    </section>
+
+    <section class="section-block map-section">
+      <div class="section-heading"><div><p class="kicker">Localización</p><h2>Mapa de suministros</h2></div><span class="map-note">Ubicaciones ficticias</span></div>
+      <div id="supplyMap" class="supply-map" aria-label="Mapa interactivo con los suministros de demostración"></div>
+    </section>
+
+    <section id="invoices" class="section-block panel invoice-section">
+      <div class="section-heading"><div><p class="kicker">Documentación</p><h2>Últimas facturas</h2></div><button id="downloadSelected" class="secondary" type="button">Descargar seleccionadas</button></div>
+      <div class="table-wrap">
+        <table>
+          <thead><tr><th aria-label="Seleccionar"></th><th>Factura</th><th>Suministro</th><th>Periodo</th><th>Importe</th><th>Estado</th><th></th></tr></thead>
+          <tbody id="invoiceRows"></tbody>
+        </table>
+      </div>
+    </section>
+  </main>
+
+  <footer><div class="logo compact"><span class="logo-symbol">T</span><strong>TRANSACTIVA</strong></div><p>Prototipo visual con datos ficticios · © 2026 Transactiva2000, S.L.</p></footer>
+
+  <div id="modalBackdrop" class="modal-backdrop" hidden></div>
+  <dialog id="profileDialog" class="dialog">
+    <button class="dialog-close" data-close-dialog type="button" aria-label="Cerrar">×</button>
+    <p class="kicker">Mi cuenta</p><h2>Perfil del cliente</h2>
+    <div class="profile-data"><span>Cliente<strong id="profileName"></strong></span><span>Correo<strong id="profileEmail"></strong></span><span>N.º cliente<strong id="profileNumber"></strong></span></div>
+    <hr><h3>Cambiar contraseña</h3>
+    <form id="passwordForm"><label>Contraseña actual<input type="password" required></label><label>Nueva contraseña<input type="password" minlength="8" required></label><label>Repetir contraseña<input type="password" minlength="8" required></label><button class="primary" type="submit">Guardar nueva contraseña</button></form>
+  </dialog>
+  <dialog id="invoiceDialog" class="dialog invoice-dialog">
+    <button class="dialog-close" data-close-dialog type="button" aria-label="Cerrar">×</button>
+    <p class="kicker">Vista previa</p><h2 id="invoiceDialogTitle">Factura</h2>
+    <div class="pdf-placeholder"><span>PDF</span><strong>Documento de demostración</strong><p>En la versión real se mostraría aquí el PDF almacenado para la factura.</p></div>
+    <button class="primary" type="button">Descargar PDF de prueba</button>
+  </dialog>
+  <dialog id="analysisDialog" class="dialog analysis-dialog">
+    <button class="dialog-close" data-close-dialog type="button" aria-label="Cerrar">×</button>
+    <p class="kicker">Análisis energético</p><h2 id="analysisTitle">Balance del periodo</h2>
+    <p id="analysisContext" class="analysis-context"></p>
+    <div class="analysis-grid">
+      <article><span>Autoconsumo solar</span><strong id="analysisSelfConsumed">—</strong></article>
+      <article><span>Energía de la red</span><strong id="analysisGridEnergy">—</strong></article>
+      <article><span>Cobertura solar</span><strong id="analysisSolarCoverage">—</strong></article>
+      <article><span>Excedente producido</span><strong id="analysisSurplus">—</strong></article>
+    </div>
+    <div class="balance-bar" aria-label="Distribución del consumo"><span id="solarBar"></span></div>
+    <div class="balance-labels"><span><i class="solar-dot"></i>Solar autoconsumida</span><span><i class="grid-dot"></i>Red eléctrica</span></div>
+    <section class="recommendation"><p class="kicker">Recomendación orientativa</p><h3 id="analysisRecommendationTitle"></h3><p id="analysisRecommendation"></p></section>
+    <p class="analysis-disclaimer">Resultado de demostración calculado con datos ficticios. No constituye una recomendación comercial ni técnica.</p>
+  </dialog>
+  <div id="toast" class="toast" role="status" aria-live="polite"></div>
+
+  <script type="module" src="assets/js/app.js"></script>
+</body>
+</html>
