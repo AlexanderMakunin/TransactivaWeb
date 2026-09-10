@@ -1,0 +1,11 @@
+{
+  "name": "transactiva-web-prototype",
+  "version": "0.2.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "start": "node scripts/serve.mjs",
+    "check": "node --check assets/js/app.js && node --check assets/js/data-service.js && node --check assets/js/invoices.js && node --check assets/js/maps.js && node --check assets/js/charts.js",
+    "test": "node --test test/*.test.js"
+  }
+}

@@ -1,8 +1,17 @@
+const euro = value => value == null ? "Pendiente" : value.toLocaleString("es-ES", { style: "currency", currency: "EUR" });
+
 export function renderInvoices(target, invoices, onPreview) {
-  target.innerHTML = invoices.map((invoice, index) => `<tr>
-    <td><input class="invoice-check" type="checkbox" aria-label="Seleccionar ${invoice.number}"></td>
-    <td><strong>${invoice.number}</strong></td><td>${invoice.cups}</td><td>${invoice.period}</td><td>${invoice.amount.toLocaleString("es-ES", { style: "currency", currency: "EUR" })}</td>
-    <td><span class="status ${invoice.status === "Pendiente" ? "pending" : ""}">${invoice.status}</span></td><td><button class="table-action" data-invoice-index="${index}" type="button">Ver PDF</button></td>
-  </tr>`).join("");
-  target.querySelectorAll("[data-invoice-index]").forEach(button => button.addEventListener("click", () => onPreview(invoices[Number(button.dataset.invoiceIndex)])));
+  target.replaceChildren();
+  const fragment = document.createDocumentFragment();
+  for (const invoice of invoices) {
+    const row = document.createElement("tr");
+    appendCell(row, invoice.number, true); appendCell(row, invoice.cups); appendCell(row, invoice.period); appendCell(row, euro(invoice.amount));
+    const statusCell = row.insertCell(); const status = document.createElement("span"); status.className = `status ${statusClass(invoice.status)}`.trim(); status.textContent = invoice.status; statusCell.append(status);
+    const actionCell = row.insertCell(); const button = document.createElement("button"); button.className = "table-action"; button.type = "button"; button.textContent = invoice.pdfAvailable === false ? "Ver detalle" : "Ver PDF"; button.addEventListener("click", () => onPreview(invoice)); actionCell.append(button);
+    fragment.append(row);
+  }
+  target.append(fragment);
 }
+
+function appendCell(row, value, strong = false) { const cell = row.insertCell(); const content = strong ? document.createElement("strong") : document.createTextNode(String(value ?? "—")); if (strong) content.textContent = String(value ?? "—"); cell.append(content); }
+function statusClass(status) { if (status === "Pendiente") return "pending"; if (status === "Borrador") return "draft"; return ""; }
