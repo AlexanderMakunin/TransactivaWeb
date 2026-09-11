@@ -87,33 +87,39 @@ export function applyDashboard(data, dashboard, periodId) {
   const daily = dashboard.dailyEnergy ?? [];
   const totalsByCups = new Map();
   for (const row of daily) {
-    const totals = totalsByCups.get(row.cups) ?? { consumption: 0, production: 0, surplus: 0 };
+    const totals = totalsByCups.get(row.cups) ?? { consumption: 0, production: 0, surplus: 0, rows: 0, productionRows: 0 };
     totals.consumption += Number(row.consumption) || 0;
     totals.production += Number(row.production) || 0;
     totals.surplus += Number(row.surplus) || 0;
+    totals.rows += 1;
+    if (row.productionAvailable === true) totals.productionRows += 1;
     totalsByCups.set(row.cups, totals);
   }
   const allTotals = [...totalsByCups.values()].reduce((sum, item) => ({
     consumption: sum.consumption + item.consumption,
     production: sum.production + item.production,
     surplus: sum.surplus + item.surplus,
-  }), { consumption: 0, production: 0, surplus: 0 });
+    rows: sum.rows + item.rows,
+    productionRows: sum.productionRows + item.productionRows,
+  }), { consumption: 0, production: 0, surplus: 0, rows: 0, productionRows: 0 });
   const balances = new Map((dashboard.batteryBalances ?? []).map(item => [item.cups, Math.max(0, Number(item.amount) || 0)]));
   const totalBattery = [...balances.values()].reduce((sum, value) => sum + value, 0);
   const address = [customer.address, customer.address2, customer.postCode, customer.city].filter(Boolean).join(", ") || customer.name;
   data.supplies = (dashboard.supplies ?? []).map(supply => {
-    const totals = totalsByCups.get(supply.cups) ?? { consumption: 0, production: 0, surplus: 0 };
+    const totals = totalsByCups.get(supply.cups) ?? { consumption: 0, production: 0, surplus: 0, rows: 0, productionRows: 0 };
     return {
       cups: supply.cups, customerNumber: customer.number, address, tariff: supply.tariff || "Sin tarifa",
       power: contractedPower(customer, supply.tariff), status: daily.some(row => row.cups === supply.cups) ? "Con datos" : "Sin datos",
       consumptionShare: ratio(totals.consumption, allTotals.consumption), productionShare: ratio(totals.production, allTotals.production),
       surplusShare: ratio(totals.surplus, allTotals.surplus), batteryShare: ratio(balances.get(supply.cups) || 0, totalBattery), comparisonAdjustment: 0,
+      productionCoverage: ratio(totals.productionRows, totals.rows),
     };
   });
   const period = data.periods.find(item => item.id === periodId);
   Object.assign(period, {
     consumption: allTotals.consumption, production: allTotals.production, surplus: allTotals.surplus, battery: totalBattery,
     comparison: null, series: dailySeries(daily, periodId), estimatedDays: new Set(daily.filter(row => row.estimated).map(row => row.date)).size,
+    hasSolar: Number(customer.solarPower) > 0, productionCoverage: ratio(allTotals.productionRows, allTotals.rows),
   });
   return period;
 }

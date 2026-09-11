@@ -121,10 +121,15 @@ function getPeriodView(period, cups) {
   const supply = data.supplies.find(item => item.cups === cups);
   if (!supply) return calculateSolarValues({ ...period });
   const scale = (values, factor) => values.map(value => Number((value * factor).toFixed(2)));
-  return calculateSolarValues({ consumption: period.consumption * supply.consumptionShare, production: period.production * supply.productionShare, surplus: period.surplus * supply.surplusShare, battery: period.battery * supply.batteryShare, comparison: period.comparison + supply.comparisonAdjustment, series: { consumption: scale(period.series.consumption, supply.consumptionShare), production: scale(period.series.production, supply.productionShare), surplus: scale(period.series.surplus, supply.surplusShare) } });
+  return calculateSolarValues({ consumption: period.consumption * supply.consumptionShare, production: period.production * supply.productionShare, surplus: period.surplus * supply.surplusShare, battery: period.battery * supply.batteryShare, comparison: period.comparison == null ? null : period.comparison + supply.comparisonAdjustment, hasSolar: period.hasSolar, productionCoverage: supply.productionCoverage, series: { consumption: scale(period.series.consumption, supply.consumptionShare), production: scale(period.series.production, supply.productionShare), surplus: scale(period.series.surplus, supply.surplusShare) } });
 }
 
 function calculateSolarValues(view) {
+  view.solarReliable = !view.hasSolar || (view.productionCoverage === 1 && view.surplus <= view.production);
+  if (!view.solarReliable) {
+    view.selfConsumed = null; view.gridEnergy = null; view.selfConsumption = null; view.surplusRatio = null;
+    return view;
+  }
   view.selfConsumed = Math.max(0, Math.min(view.consumption, view.production - view.surplus));
   view.gridEnergy = Math.max(0, view.consumption - view.selfConsumed);
   view.selfConsumption = view.consumption > 0 ? Math.round(view.selfConsumed / view.consumption * 100) : 0;
@@ -139,10 +144,10 @@ function renderPeriod(period, cups = "all") {
   element("#surplusMetric").textContent = energy(currentView.surplus);
   element("#batteryMetric").textContent = euro(currentView.battery);
   element("#consumptionComparison").textContent = currentView.comparison == null ? "Comparativa no disponible" : `${currentView.comparison < 0 ? "↓" : "↑"} ${Math.abs(currentView.comparison).toLocaleString("es-ES", { maximumFractionDigits: 1 })} % respecto al mes anterior`;
-  element("#selfConsumptionMetric").textContent = `${currentView.selfConsumption} % de autoconsumo`;
-  element("#solarScore").textContent = currentView.selfConsumption;
-  element("#solarScore").parentElement.style.setProperty("--solar-percent", `${currentView.selfConsumption}%`);
-  element("#insightText").textContent = currentView.selfConsumption >= 65 ? "Tu producción cubre una parte importante del consumo. Revisa excedentes para aprovechar mejor energía generada." : "Existe margen para desplazar consumo a horas de mayor producción solar.";
+  element("#selfConsumptionMetric").textContent = currentView.solarReliable ? `${currentView.selfConsumption} % de autoconsumo` : `${Math.round(currentView.productionCoverage * 100)} % de días con producción`;
+  element("#solarScore").textContent = currentView.solarReliable ? currentView.selfConsumption : "—";
+  element("#solarScore").parentElement.style.setProperty("--solar-percent", `${currentView.solarReliable ? currentView.selfConsumption : 0}%`);
+  element("#insightText").textContent = !currentView.solarReliable ? "Producción solar incompleta o incompatible con excedentes. No se calcula autoconsumo hasta completar datos." : currentView.selfConsumption >= 65 ? "Tu producción cubre una parte importante del consumo. Revisa excedentes para aprovechar mejor energía generada." : "Existe margen para desplazar consumo a horas de mayor producción solar.";
   renderEnergyChart(element("#energyChart"), currentView.series);
 }
 
@@ -246,6 +251,12 @@ function renderCompleteAnalysis() {
   const supply = data.supplies.find(item => item.cups === selectedCups);
   element("#analysisTitle").textContent = selectedCups === "all" ? "Balance consolidado" : supply.address;
   element("#analysisContext").textContent = `${selectedPeriod.label} · ${selectedCups === "all" ? "Todos los suministros" : selectedCups}`;
+  if (!currentView.solarReliable) {
+    element("#analysisSelfConsumed").textContent = "No calculable"; element("#analysisGridEnergy").textContent = "No calculable"; element("#analysisSolarCoverage").textContent = `${Math.round(currentView.productionCoverage * 100)} % de datos`; element("#analysisSurplus").textContent = energy(currentView.surplus); element("#solarBar").style.width = "0%";
+    element("#analysisRecommendationTitle").textContent = "Faltan datos solares comparables";
+    element("#analysisRecommendation").textContent = "Completa producción diaria MySQL o revisa origen de excedentes antes de interpretar autoconsumo.";
+    openDialog(element("#analysisDialog")); return;
+  }
   element("#analysisSelfConsumed").textContent = energy(currentView.selfConsumed); element("#analysisGridEnergy").textContent = energy(currentView.gridEnergy); element("#analysisSolarCoverage").textContent = `${currentView.selfConsumption} %`; element("#analysisSurplus").textContent = `${energy(currentView.surplus)} (${currentView.surplusRatio} % de producción)`; element("#solarBar").style.width = `${currentView.selfConsumption}%`;
   const highSurplus = currentView.surplusRatio >= 30; const lowCoverage = currentView.selfConsumption < 40;
   element("#analysisRecommendationTitle").textContent = highSurplus ? "Hay excedente aprovechable" : lowCoverage ? "Puedes aumentar uso directo de energía solar" : "Equilibrio solar razonable";
