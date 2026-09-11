@@ -1,4 +1,4 @@
-import { downloadDraftInvoicePdf, login, logout, requestDraftInvoice } from "./data-service.js";
+import { applyDashboard, downloadDraftInvoicePdf, loadDashboard, login, logout, requestDraftInvoice } from "./data-service.js";
 import { renderEnergyChart } from "./charts.js";
 import { renderInvoices } from "./invoices.js";
 import { focusSupply, renderSupplyMap } from "./maps.js";
@@ -49,7 +49,7 @@ async function submitLogin(event) {
   try {
     data = await login(form.username.value.trim(), form.password.value);
     form.password.value = "";
-    showPortal();
+    await showPortal();
   } catch (loginError) {
     error.textContent = loginError.message;
     error.hidden = false;
@@ -61,7 +61,7 @@ async function submitLogin(event) {
   }
 }
 
-function showPortal() {
+async function showPortal() {
   element("#loginView").hidden = true;
   element("#portalShell").hidden = false;
   element("#customerFirstName").textContent = data.user.name.split(" ")[0];
@@ -70,14 +70,14 @@ function showPortal() {
   element("#profileEmail").textContent = data.user.email;
   element("#profileCustomerCount").textContent = String(data.customers.length);
   fillSelectors();
-  renderSupplyCards();
-  renderPeriod(data.periods[0]);
-  renderSupplyMap("supplyMap", data.supplies);
   renderInvoiceList();
+  await refreshDashboard(false);
   element("#mainContent").focus({ preventScroll: true });
 }
 
 function fillSelectors() {
+  const customerFilter = element("#customerFilter");
+  customerFilter.replaceChildren(...data.customers.map(customer => option(customer.number, `${customer.name} · ${customer.number}`)));
   const supplyFilter = element("#supplyFilter");
   supplyFilter.replaceChildren(option("all", "Todos los suministros"));
   for (const supply of data.supplies) supplyFilter.append(option(supply.cups, supply.address));
@@ -85,8 +85,8 @@ function fillSelectors() {
   const periodFilter = element("#periodFilter");
   periodFilter.replaceChildren(...data.periods.map(period => option(period.id, period.label)));
 
-  const customerFilter = element("#invoiceCustomer");
-  customerFilter.replaceChildren(...data.customers.map(customer => option(customer.number, `${customer.name} · ${customer.number}`)));
+  const invoiceCustomer = element("#invoiceCustomer");
+  invoiceCustomer.replaceChildren(...data.customers.map(customer => option(customer.number, `${customer.name} · ${customer.number}`)));
 }
 
 function renderSupplyCards() {
@@ -138,7 +138,7 @@ function renderPeriod(period, cups = "all") {
   element("#productionMetric").textContent = energy(currentView.production);
   element("#surplusMetric").textContent = energy(currentView.surplus);
   element("#batteryMetric").textContent = euro(currentView.battery);
-  element("#consumptionComparison").textContent = `${currentView.comparison < 0 ? "↓" : "↑"} ${Math.abs(currentView.comparison).toLocaleString("es-ES", { maximumFractionDigits: 1 })} % respecto al mes anterior`;
+  element("#consumptionComparison").textContent = currentView.comparison == null ? "Comparativa no disponible" : `${currentView.comparison < 0 ? "↓" : "↑"} ${Math.abs(currentView.comparison).toLocaleString("es-ES", { maximumFractionDigits: 1 })} % respecto al mes anterior`;
   element("#selfConsumptionMetric").textContent = `${currentView.selfConsumption} % de autoconsumo`;
   element("#solarScore").textContent = currentView.selfConsumption;
   element("#solarScore").parentElement.style.setProperty("--solar-percent", `${currentView.selfConsumption}%`);
@@ -155,11 +155,45 @@ function refresh(showToast = true) {
   if (showToast) toast("Vista actualizada");
 }
 
+async function refreshDashboard(showToast = true) {
+  const button = element("#refreshButton");
+  const customerNumber = element("#customerFilter").value;
+  const periodId = element("#periodFilter").value;
+  button.disabled = true;
+  button.textContent = "Cargando…";
+  element("#lastUpdated").textContent = "Actualizando";
+  try {
+    const dashboard = await loadDashboard(customerNumber, periodId);
+    const period = applyDashboard(data, dashboard, periodId);
+    element("#customerFilter").selectedOptions[0].textContent = `${dashboard.customer.name} · ${dashboard.customer.number}`;
+    fillSupplySelector();
+    renderSupplyCards();
+    renderPeriod(period);
+    renderSupplyMap("supplyMap", data.supplies);
+    renderInvoiceList();
+    element("#lastUpdated").textContent = `Actualizado ${new Date().toLocaleTimeString("es-ES", { hour: "2-digit", minute: "2-digit" })}`;
+    if (showToast) toast("Datos energéticos actualizados");
+  } catch (error) {
+    element("#lastUpdated").textContent = "Error de carga";
+    toast(error.message || "No se pudieron cargar los datos energéticos.");
+  } finally {
+    button.disabled = false;
+    button.textContent = "Actualizar vista";
+  }
+}
+
+function fillSupplySelector() {
+  const supplyFilter = element("#supplyFilter");
+  supplyFilter.replaceChildren(option("all", "Todos los suministros"));
+  for (const supply of data.supplies) supplyFilter.append(option(supply.cups, supply.cups));
+}
+
 function renderInvoiceList() {
+  const customerNumber = element("#customerFilter").value;
   const cups = element("#supplyFilter").value;
   const search = element("#invoiceSearch").value.trim().toLocaleLowerCase("es");
   const status = element("#invoiceStatusFilter").value;
-  const invoices = data.invoices.filter(invoice => (cups === "all" || invoice.cups === cups || invoice.cups === "Pendiente de cálculo") && (status === "all" || invoice.status === status) && (!search || `${invoice.number} ${invoice.cups}`.toLocaleLowerCase("es").includes(search)));
+  const invoices = data.invoices.filter(invoice => invoice.customerNumber === customerNumber && (cups === "all" || invoice.cups === cups || invoice.cups === "Pendiente de cálculo" || invoice.cups === "—") && (status === "all" || invoice.status === status) && (!search || `${invoice.number} ${invoice.cups}`.toLocaleLowerCase("es").includes(search)));
   const hasInvoices = invoices.length > 0;
   element("#invoiceState").hidden = hasInvoices;
   element("#invoiceTableWrap").hidden = !hasInvoices;
@@ -175,6 +209,8 @@ function previewInvoice(invoice) {
   element("#invoiceDialogCustomer").textContent = customer ? `${customer.name} · ${customer.number}` : invoice.customerNumber;
   element("#invoiceDialogPeriod").textContent = invoice.period;
   element("#invoiceDialogAmount").textContent = euro(invoice.amount);
+  element("#invoiceDialogConfidence").textContent = invoice.confidence;
+  element("#invoiceDialogConfidenceReason").textContent = invoice.confidenceReason || "Sin incidencias de confianza detalladas.";
   element("#downloadInvoiceButton").disabled = invoice.pdfAvailable === false;
   element("#downloadInvoiceButton").textContent = invoice.pdfAvailable === false ? "PDF pendiente" : "Descargar PDF";
   openDialog(element("#invoiceDialog"));
@@ -229,7 +265,7 @@ async function closeSession() {
 
 element("#loginForm").addEventListener("submit", submitLogin);
 element("#togglePassword").addEventListener("click", event => { const input = element("#loginPassword"); const visible = input.type === "text"; input.type = visible ? "password" : "text"; event.currentTarget.textContent = visible ? "Mostrar" : "Ocultar"; event.currentTarget.setAttribute("aria-label", `${visible ? "Mostrar" : "Ocultar"} contraseña`); });
-element("#refreshButton").addEventListener("click", () => refresh()); element("#supplyFilter").addEventListener("change", () => refresh(false)); element("#periodFilter").addEventListener("change", () => refresh(false));
+element("#refreshButton").addEventListener("click", () => refreshDashboard()); element("#customerFilter").addEventListener("change", () => refreshDashboard(false)); element("#supplyFilter").addEventListener("change", () => refresh(false)); element("#periodFilter").addEventListener("change", () => refreshDashboard(false));
 element("#invoiceSearch").addEventListener("input", renderInvoiceList); element("#invoiceStatusFilter").addEventListener("change", renderInvoiceList);
 element("#profileButton").addEventListener("click", () => openDialog(element("#profileDialog"))); element("#logoutButton").addEventListener("click", closeSession); element("#analysisButton").addEventListener("click", renderCompleteAnalysis);
 element("#requestInvoiceButton").addEventListener("click", openInvoiceRequest); element("#requestInvoiceForm").addEventListener("submit", submitInvoiceRequest);

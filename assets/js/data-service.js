@@ -2,8 +2,16 @@ const config = Object.freeze({ apiBaseUrl: "https://smart-metering-portal-backen
 
 export async function login(username, password) {
   const session = await request("/api/session", { method: "POST", body: JSON.stringify({ username, password }) });
-  const invoices = await request("/api/draft-invoices");
-  return portalData(session.user, invoices.value ?? []);
+  return portalData(session.user, []);
+}
+
+export async function loadDashboard(customerNumber, periodId, cups = "") {
+  const [year, month] = periodId.split("-").map(Number);
+  const from = `${year}-${String(month).padStart(2, "0")}-01`;
+  const to = `${year}-${String(month).padStart(2, "0")}-${String(new Date(year, month, 0).getDate()).padStart(2, "0")}`;
+  const query = new URLSearchParams({ customerNumber, from, to });
+  if (cups) query.set("cups", cups);
+  return request(`/api/dashboard?${query}`);
 }
 
 export async function logout() {
@@ -47,22 +55,112 @@ export function portalData(user, invoices) {
     number,
     name: invoices.find(invoice => invoice.customerNumber === number)?.customerName || number,
   }));
-  const now = new Date();
-  const periodId = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, "0")}`;
   return {
-    user: { name: user.displayName || user.username, email: "No disponible", customerNumbers: user.customerNumbers },
+    user: { username: user.username, name: user.displayName || user.username, email: "No disponible", customerNumbers: user.customerNumbers },
     customers,
     supplies: [],
-    periods: [{ id: periodId, label: "Datos energéticos pendientes", consumption: 0, production: 0, surplus: 0, battery: 0, comparison: 0, series: { consumption: [0], production: [0], surplus: [0] } }],
+    periods: monthOptions(12),
     invoices: invoices.map(invoice => ({
       id: invoice.id,
       number: invoice.number,
       customerNumber: invoice.customerNumber,
-      cups: "—",
-      period: invoice.documentDate || "Sin fecha",
+      cups: invoice.cups || "—",
+      period: invoice.energyPeriodMonth || invoice.documentDate || "Sin fecha",
       amount: invoice.amountIncludingTax,
       status: "Borrador",
+      confidence: invoice.confidence || "Sin calcular",
+      confidenceReason: invoice.confidenceReason || "",
+      estimatedDays: invoice.estimatedDays || 0,
+      missingReadingDays: invoice.missingReadingDays || 0,
       pdfAvailable: true,
     })),
   };
+}
+
+export function applyDashboard(data, dashboard, periodId) {
+  const customer = dashboard.customer;
+  const customerIndex = data.customers.findIndex(item => item.number === customer.number);
+  const mappedCustomer = { number: customer.number, name: customer.name };
+  if (customerIndex >= 0) data.customers[customerIndex] = mappedCustomer;
+  data.invoices = (dashboard.draftInvoices ?? []).map(mapInvoice);
+
+  const daily = dashboard.dailyEnergy ?? [];
+  const totalsByCups = new Map();
+  for (const row of daily) {
+    const totals = totalsByCups.get(row.cups) ?? { consumption: 0, production: 0, surplus: 0 };
+    totals.consumption += Number(row.consumption) || 0;
+    totals.production += Number(row.production) || 0;
+    totals.surplus += Number(row.surplus) || 0;
+    totalsByCups.set(row.cups, totals);
+  }
+  const allTotals = [...totalsByCups.values()].reduce((sum, item) => ({
+    consumption: sum.consumption + item.consumption,
+    production: sum.production + item.production,
+    surplus: sum.surplus + item.surplus,
+  }), { consumption: 0, production: 0, surplus: 0 });
+  const balances = new Map((dashboard.batteryBalances ?? []).map(item => [item.cups, Math.max(0, Number(item.amount) || 0)]));
+  const totalBattery = [...balances.values()].reduce((sum, value) => sum + value, 0);
+  const address = [customer.address, customer.address2, customer.postCode, customer.city].filter(Boolean).join(", ") || customer.name;
+  data.supplies = (dashboard.supplies ?? []).map(supply => {
+    const totals = totalsByCups.get(supply.cups) ?? { consumption: 0, production: 0, surplus: 0 };
+    return {
+      cups: supply.cups, customerNumber: customer.number, address, tariff: supply.tariff || "Sin tarifa",
+      power: contractedPower(customer, supply.tariff), status: daily.some(row => row.cups === supply.cups) ? "Con datos" : "Sin datos",
+      consumptionShare: ratio(totals.consumption, allTotals.consumption), productionShare: ratio(totals.production, allTotals.production),
+      surplusShare: ratio(totals.surplus, allTotals.surplus), batteryShare: ratio(balances.get(supply.cups) || 0, totalBattery), comparisonAdjustment: 0,
+    };
+  });
+  const period = data.periods.find(item => item.id === periodId);
+  Object.assign(period, {
+    consumption: allTotals.consumption, production: allTotals.production, surplus: allTotals.surplus, battery: totalBattery,
+    comparison: null, series: dailySeries(daily, periodId), estimatedDays: new Set(daily.filter(row => row.estimated).map(row => row.date)).size,
+  });
+  return period;
+}
+
+function mapInvoice(invoice) {
+  return {
+    id: invoice.id,
+    number: invoice.number,
+    customerNumber: invoice.customerNumber,
+    cups: invoice.cups || "—",
+    period: invoice.energyPeriodMonth || invoice.documentDate || "Sin fecha",
+    amount: Number(invoice.amountIncludingTax) || 0,
+    status: "Borrador",
+    confidence: invoice.confidence || "Sin calcular",
+    confidenceReason: invoice.confidenceReason || "",
+    estimatedDays: Number(invoice.estimatedDays) || 0,
+    missingReadingDays: Number(invoice.missingReadingDays) || 0,
+    pdfAvailable: true,
+  };
+}
+
+function monthOptions(count) {
+  const formatter = new Intl.DateTimeFormat("es-ES", { month: "long", year: "numeric" });
+  const now = new Date();
+  return Array.from({ length: count }, (_, offset) => {
+    const date = new Date(now.getFullYear(), now.getMonth() - offset, 1);
+    return { id: `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, "0")}`, label: formatter.format(date), consumption: 0, production: 0, surplus: 0, battery: 0, comparison: null, series: { consumption: [0], production: [0], surplus: [0] } };
+  });
+}
+
+function dailySeries(rows, periodId) {
+  const [year, month] = periodId.split("-").map(Number);
+  const days = new Date(year, month, 0).getDate();
+  const result = { consumption: Array(days).fill(0), production: Array(days).fill(0), surplus: Array(days).fill(0) };
+  for (const row of rows) {
+    const index = Number(row.date.slice(-2)) - 1;
+    if (index < 0 || index >= days) continue;
+    result.consumption[index] += Number(row.consumption) || 0;
+    result.production[index] += Number(row.production) || 0;
+    result.surplus[index] += Number(row.surplus) || 0;
+  }
+  return result;
+}
+
+function ratio(value, total) { return total > 0 ? value / total : 0; }
+function contractedPower(customer, tariff) {
+  const periods = tariff === "3.0TD" ? [1, 2, 3, 4, 5, 6] : [1, 3];
+  const values = periods.map(number => customer[`contractedPowerP${number}`]).filter(value => value && value !== "0");
+  return values.length ? `${values.join(" / ")} kW` : "Sin potencia";
 }

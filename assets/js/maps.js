@@ -3,11 +3,12 @@ let markers = new Map();
 
 export function renderSupplyMap(containerId, supplies) {
   const container = document.getElementById(containerId);
+  const locatedSupplies = supplies.filter(supply => Number.isFinite(supply.latitude) && Number.isFinite(supply.longitude));
   if (map) {
     map.remove();
     markers.clear();
   }
-  if (supplies.length === 0) {
+  if (locatedSupplies.length === 0) {
     container.textContent = "Las ubicaciones aparecerán cuando la API facilite los suministros autorizados.";
     container.classList.add("content-state");
     return;
@@ -26,7 +27,7 @@ export function renderSupplyMap(containerId, supplies) {
   }).addTo(map);
 
   const bounds = [];
-  supplies.forEach(supply => {
+  locatedSupplies.forEach(supply => {
     const position = [supply.latitude, supply.longitude];
     const popup = document.createElement("div");
     const title = document.createElement("strong");

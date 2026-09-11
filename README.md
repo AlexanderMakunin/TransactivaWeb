@@ -20,9 +20,10 @@ También puede usarse **Live Server** de VS Code o publicarse en GitHub Pages.
 - Filtrado de clientes, suministros y facturas autorizados para usuario actual.
 - Preparación visual de la solicitud de factura borrador; la acción permanece deshabilitada hasta implementar el generador en backend.
 - Búsqueda, filtro, estado vacío y detalle de facturas.
-- Panel mensual de consumo, producción, excedentes y batería virtual.
+- Panel mensual real: consumo/excedente Máximo, producción MySQL y batería confirmada.
+- Selector de cliente autorizado, CUPS y últimos doce meses.
 - Selector de CUPS y periodo.
-- Indicadores y gráfico recalculados para el CUPS seleccionado; la opción global muestra el consolidado.
+- Indicadores y gráfico recalculados para CUPS seleccionado; opción global muestra consolidado del cliente.
 - Porcentaje solar calculado a partir de producción, excedentes y consumo, con análisis ampliado dinámico.
 - Gráfico SVG sin dependencias externas.
 - Suministros, facturas y vista previa de PDF.
