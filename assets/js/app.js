@@ -24,9 +24,13 @@ function openDialog(dialog) {
   dialog.showModal();
 }
 
+function syncDialogBackdrop() {
+  element("#modalBackdrop").hidden = !document.querySelector("dialog[open]");
+}
+
 function closeDialogs() {
   document.querySelectorAll("dialog[open]").forEach(dialog => dialog.close());
-  element("#modalBackdrop").hidden = true;
+  syncDialogBackdrop();
 }
 
 function option(value, label) {
@@ -254,7 +258,7 @@ function renderCompleteAnalysis() {
   if (!currentView.solarReliable) {
     element("#analysisSelfConsumed").textContent = "No calculable"; element("#analysisGridEnergy").textContent = "No calculable"; element("#analysisSolarCoverage").textContent = `${Math.round(currentView.productionCoverage * 100)} % de datos`; element("#analysisSurplus").textContent = energy(currentView.surplus); element("#solarBar").style.width = "0%";
     element("#analysisRecommendationTitle").textContent = "Faltan datos solares comparables";
-    element("#analysisRecommendation").textContent = "Completa producción diaria MySQL o revisa origen de excedentes antes de interpretar autoconsumo.";
+    element("#analysisRecommendation").textContent = "Faltan lecturas solares comparables para este periodo. El autoconsumo se mostrará cuando los datos estén completos.";
     openDialog(element("#analysisDialog")); return;
   }
   element("#analysisSelfConsumed").textContent = energy(currentView.selfConsumed); element("#analysisGridEnergy").textContent = energy(currentView.gridEnergy); element("#analysisSolarCoverage").textContent = `${currentView.selfConsumption} %`; element("#analysisSurplus").textContent = `${energy(currentView.surplus)} (${currentView.surplusRatio} % de producción)`; element("#solarBar").style.width = `${currentView.selfConsumption}%`;
@@ -288,4 +292,5 @@ element("#downloadInvoiceButton").addEventListener("click", async event => {
   finally { button.disabled = false; button.textContent = "Descargar PDF"; }
 });
 document.querySelectorAll("[data-close-dialog]").forEach(button => button.addEventListener("click", closeDialogs)); element("#modalBackdrop").addEventListener("click", closeDialogs);
+document.querySelectorAll("dialog").forEach(dialog => dialog.addEventListener("close", syncDialogBackdrop));
 element("#menuButton").addEventListener("click", event => { const nav = element("#mainNav"); const open = nav.classList.toggle("open"); event.currentTarget.setAttribute("aria-expanded", String(open)); });

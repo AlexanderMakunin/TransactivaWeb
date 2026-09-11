@@ -109,6 +109,7 @@ export function applyDashboard(data, dashboard, periodId) {
     const totals = totalsByCups.get(supply.cups) ?? { consumption: 0, production: 0, surplus: 0, rows: 0, productionRows: 0 };
     return {
       cups: supply.cups, customerNumber: customer.number, address, tariff: supply.tariff || "Sin tarifa",
+      latitude: finiteCoordinate(supply.latitude), longitude: finiteCoordinate(supply.longitude),
       power: contractedPower(customer, supply.tariff), status: daily.some(row => row.cups === supply.cups) ? "Con datos" : "Sin datos",
       consumptionShare: ratio(totals.consumption, allTotals.consumption), productionShare: ratio(totals.production, allTotals.production),
       surplusShare: ratio(totals.surplus, allTotals.surplus), batteryShare: ratio(balances.get(supply.cups) || 0, totalBattery), comparisonAdjustment: 0,
@@ -165,6 +166,11 @@ function dailySeries(rows, periodId) {
 }
 
 function ratio(value, total) { return total > 0 ? value / total : 0; }
+function finiteCoordinate(value) {
+  if (value == null || value === "") return null;
+  const coordinate = Number(value);
+  return Number.isFinite(coordinate) ? coordinate : null;
+}
 function contractedPower(customer, tariff) {
   const periods = tariff === "3.0TD" ? [1, 2, 3, 4, 5, 6] : [1, 3];
   const values = periods.map(number => customer[`contractedPowerP${number}`]).filter(value => value && value !== "0");

@@ -20,7 +20,7 @@ test("builds monthly energy and battery totals from authorized dashboard", () =>
   const periodId = data.periods[0].id;
   const period = applyDashboard(data, {
     customer: { number: "C001", name: "Cliente", address: "Calle 1", solarPower: 5, contractedPowerP1: "5.5", contractedPowerP3: "5.5" },
-    supplies: [{ cups: "ES001", customerNumber: "C001", tariff: "2.0TD" }],
+    supplies: [{ cups: "ES001", customerNumber: "C001", tariff: "2.0TD", latitude: "40.4168", longitude: "-3.7038" }],
     dailyEnergy: [{ cups: "ES001", date: `${periodId}-01`, consumption: 10, production: 7, productionAvailable: true, surplus: 2, estimated: false }],
     batteryBalances: [{ cups: "ES001", amount: 4.5 }],
     draftInvoices: [{ id: "invoice-id", number: "FV-2", customerNumber: "C001", cups: "ES001", amountIncludingTax: 42, confidence: "Alto" }],
@@ -31,6 +31,8 @@ test("builds monthly energy and battery totals from authorized dashboard", () =>
   assert.equal(period.battery, 4.5);
   assert.equal(period.productionCoverage, 1);
   assert.equal(data.supplies[0].power, "5.5 / 5.5 kW");
+  assert.equal(data.supplies[0].latitude, 40.4168);
+  assert.equal(data.supplies[0].longitude, -3.7038);
   assert.equal(data.invoices[0].number, "FV-2");
   assert.equal(data.invoices[0].confidence, "Alto");
 });

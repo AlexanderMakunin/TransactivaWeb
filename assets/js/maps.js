@@ -3,20 +3,22 @@ let markers = new Map();
 
 export function renderSupplyMap(containerId, supplies) {
   const container = document.getElementById(containerId);
+  const section = container.closest(".map-section");
   const locatedSupplies = supplies.filter(supply => Number.isFinite(supply.latitude) && Number.isFinite(supply.longitude));
   if (map) {
     map.remove();
     markers.clear();
   }
   if (locatedSupplies.length === 0) {
-    container.textContent = "Las ubicaciones aparecerán cuando la API facilite los suministros autorizados.";
-    container.classList.add("content-state");
+    section.hidden = true;
+    container.replaceChildren();
     return;
   }
+  section.hidden = false;
   container.textContent = "";
   container.classList.remove("content-state");
   if (!window.L) {
-    container.textContent = "No se pudo cargar el mapa. Las demás funciones siguen disponibles.";
+    container.textContent = "El mapa no está disponible en este momento.";
     container.classList.add("content-state");
     return;
   }
