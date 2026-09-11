@@ -22,10 +22,13 @@ function toast(message) {
 function openDialog(dialog) {
   element("#modalBackdrop").hidden = false;
   dialog.showModal();
+  syncDialogBackdrop();
 }
 
 function syncDialogBackdrop() {
-  element("#modalBackdrop").hidden = !document.querySelector("dialog[open]");
+  const isOpen = Boolean(document.querySelector("dialog[open]"));
+  element("#modalBackdrop").hidden = !isOpen;
+  document.body.classList.toggle("dialog-open", isOpen);
 }
 
 function closeDialogs() {
