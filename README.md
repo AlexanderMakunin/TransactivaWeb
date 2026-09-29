@@ -18,7 +18,7 @@ También puede usarse **Live Server** de VS Code o publicarse en GitHub Pages.
 
 - Login contra `Clientes Web` mediante Cloudflare Worker, sin persistir contraseña ni token Business Central.
 - Filtrado de clientes, suministros y facturas autorizados para usuario actual.
-- Preparación visual de la solicitud de factura borrador; la acción permanece deshabilitada hasta implementar el generador en backend.
+- Solicitud de factura de inquilino: cliente, borrador de referencia (aporta cliente y CUPS al backend), periodo de días arbitrario, fecha de factura, nombre, dirección y NIF/NIE; descarga el PDF generado sin registrar ni contabilizar.
 - Búsqueda, filtro, estado vacío y detalle de facturas.
 - Panel mensual real: consumo/excedente Máximo, producción MySQL y batería confirmada.
 - Selector de cliente autorizado, CUPS y últimos doce meses.

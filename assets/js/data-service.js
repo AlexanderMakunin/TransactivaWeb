@@ -18,8 +18,18 @@ export async function logout() {
   await request("/api/session", { method: "DELETE" });
 }
 
-export async function requestDraftInvoice(payload) {
-  return request("/api/draft-invoices", { method: "POST", body: JSON.stringify(payload) });
+export async function requestTenantInvoicePdf(payload) {
+  const response = await fetch(`${config.apiBaseUrl}/api/draft-invoices`, {
+    method: "POST",
+    credentials: "include",
+    headers: { accept: "application/pdf", "content-type": "application/json" },
+    body: JSON.stringify(payload),
+  });
+  if (!response.ok) {
+    const error = await response.json().catch(() => ({}));
+    throw new Error(error.message || `No se pudo generar la factura de inquilino (${response.status}).`);
+  }
+  await savePdf(response, "factura-inquilino.pdf");
 }
 
 export async function downloadDraftInvoicePdf(invoiceId) {
@@ -32,9 +42,15 @@ export async function downloadDraftInvoicePdf(invoiceId) {
     const payload = await response.json().catch(() => ({}));
     throw new Error(payload.message || `No se pudo descargar el PDF (${response.status}).`);
   }
+  await savePdf(response, "factura-borrador.pdf");
+}
+
+// content-disposition no es visible en peticiones cross-origin sin expose-headers,
+// por eso cada llamada aporta su nombre de respaldo.
+async function savePdf(response, fallbackName) {
   const blob = await response.blob();
   const disposition = response.headers.get("content-disposition") || "";
-  const fileName = disposition.match(/filename="([^"]+)"/)?.[1] || "factura-borrador.pdf";
+  const fileName = disposition.match(/filename="([^"]+)"/)?.[1] || fallbackName;
   const link = document.createElement("a");
   link.href = URL.createObjectURL(blob); link.download = fileName;
   document.body.append(link); link.click(); link.remove();

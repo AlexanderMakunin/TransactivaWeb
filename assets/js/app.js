@@ -1,4 +1,4 @@
-import { applyDashboard, downloadDraftInvoicePdf, loadDashboard, login, logout, requestDraftInvoice } from "./data-service.js";
+import { applyDashboard, downloadDraftInvoicePdf, loadDashboard, login, logout, requestTenantInvoicePdf } from "./data-service.js";
 import { renderEnergyChart } from "./charts.js";
 import { renderInvoices } from "./invoices.js";
 import { focusSupply, renderSupplyMap } from "./maps.js";
@@ -94,6 +94,18 @@ function fillSelectors() {
 
   const invoiceCustomer = element("#invoiceCustomer");
   invoiceCustomer.replaceChildren(...data.customers.map(customer => option(customer.number, `${customer.name} · ${customer.number}`)));
+}
+
+// El borrador ancla aporta cliente y CUPS al backend: se lista sobre los
+// borradores ya cargados del panel del cliente seleccionado.
+function fillAnchorSelector() {
+  const customerNumber = element("#invoiceCustomer").value;
+  const anchors = data.invoices.filter(invoice => invoice.customerNumber === customerNumber);
+  const placeholder = option("", anchors.length ? "Selecciona un borrador" : "Sin borradores: carga el panel del cliente");
+  placeholder.disabled = true;
+  const select = element("#invoiceAnchor");
+  select.replaceChildren(placeholder, ...anchors.map(invoice =>
+    option(invoice.id, `${invoice.number} · ${invoice.cups} · ${invoice.period}`)));
 }
 
 function renderSupplyCards() {
@@ -233,6 +245,10 @@ function openInvoiceRequest() {
   const [year, month] = selectedPeriod.id.split("-").map(Number);
   element("#invoiceFrom").value = `${year}-${String(month).padStart(2, "0")}-01`;
   element("#invoiceTo").value = `${year}-${String(month).padStart(2, "0")}-${String(new Date(year, month, 0).getDate()).padStart(2, "0")}`;
+  element("#invoiceDate").value = new Date().toISOString().slice(0, 10);
+  // Los borradores cargados pertenecen al cliente del panel: sincroniza y lista anclas.
+  element("#invoiceCustomer").value = element("#customerFilter").value;
+  fillAnchorSelector();
   element("#requestInvoiceError").hidden = true;
   openDialog(element("#requestInvoiceDialog"));
 }
@@ -246,10 +262,19 @@ async function submitInvoiceRequest(event) {
   error.hidden = true;
   const button = element("#submitInvoiceRequest"); button.disabled = true; button.textContent = "Generando…";
   try {
-    const invoice = await requestDraftInvoice({ customerNumber: form.customer.value, from: form.from.value, to: form.to.value, tenantName: form.tenantName.value.trim() });
-    data.invoices.unshift(invoice); closeDialogs(); form.reset(); renderInvoiceList(); element("#invoices").scrollIntoView(); toast("Borrador solicitado. Revisa estado antes de usarlo.");
+    await requestTenantInvoicePdf({
+      invoiceId: form.anchor.value,
+      periodStart: form.from.value,
+      periodEnd: form.to.value,
+      invoiceDate: form.invoiceDate.value,
+      tenantName: form.tenantName.value.trim(),
+      tenantAddress: form.tenantAddress.value.trim(),
+      tenantIdentifier: form.tenantIdentifier.value.trim(),
+    });
+    closeDialogs(); form.reset(); toast("Factura de inquilino generada. Descarga iniciada.");
+    await refreshDashboard(false);
   } catch (requestError) { error.textContent = requestError.message; error.hidden = false; }
-  finally { button.disabled = false; button.textContent = "Generar borrador"; }
+  finally { button.disabled = false; button.textContent = "Generar factura"; }
 }
 
 function renderCompleteAnalysis() {
@@ -287,6 +312,11 @@ element("#refreshButton").addEventListener("click", () => refreshDashboard()); e
 element("#invoiceSearch").addEventListener("input", renderInvoiceList); element("#invoiceStatusFilter").addEventListener("change", renderInvoiceList);
 element("#profileButton").addEventListener("click", () => openDialog(element("#profileDialog"))); element("#logoutButton").addEventListener("click", closeSession); element("#analysisButton").addEventListener("click", renderCompleteAnalysis);
 element("#requestInvoiceButton").addEventListener("click", openInvoiceRequest); element("#requestInvoiceForm").addEventListener("submit", submitInvoiceRequest);
+element("#invoiceCustomer").addEventListener("change", async () => {
+  element("#customerFilter").value = element("#invoiceCustomer").value;
+  await refreshDashboard(false);
+  fillAnchorSelector();
+});
 element("#downloadInvoiceButton").addEventListener("click", async event => {
   if (!selectedInvoice || selectedInvoice.pdfAvailable === false) return;
   const button = event.currentTarget; button.disabled = true; button.textContent = "Preparando PDF…";
