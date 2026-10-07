@@ -270,7 +270,7 @@ async function submitInvoiceRequest(event) {
       tenantName: form.tenantName.value.trim(),
       tenantAddress: form.tenantAddress.value.trim(),
       tenantIdentifier: form.tenantIdentifier.value.trim(),
-    });
+    }, attemptNumber => { button.textContent = `Generando… (intento ${attemptNumber})`; });
     closeDialogs(); form.reset(); toast("Factura de inquilino generada. Descarga iniciada.");
     await refreshDashboard(false);
   } catch (requestError) { error.textContent = requestError.message; error.hidden = false; }

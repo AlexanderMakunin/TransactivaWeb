@@ -18,18 +18,64 @@ export async function logout() {
   await request("/api/session", { method: "DELETE" });
 }
 
-export async function requestTenantInvoicePdf(payload) {
-  const response = await fetch(`${config.apiBaseUrl}/api/draft-invoices`, {
-    method: "POST",
-    credentials: "include",
-    headers: { accept: "application/pdf", "content-type": "application/json" },
-    body: JSON.stringify(payload),
-  });
-  if (!response.ok) {
-    const error = await response.json().catch(() => ({}));
-    throw new Error(error.message || `No se pudo generar la factura de inquilino (${response.status}).`);
+// Bucle de sondeo de generación (regla 34: reintentos limitados a fallos
+// transitorios conocidos). Un solo POST no sobrevive al corte de
+// infraestructura (~125 s → 502) ni a una generación larga de BC: cada
+// repetición de la MISMA petición responde 425 «en curso» (o 502 si vuelva a
+// cortar) hasta que el reclamo de BC entrega el PDF al terminar. 18 intentos ×
+// 45 s = 765 s ≈ 12,75 min de espera + primer intento largo (hasta ~125 s si
+// hay corte) ≈ 14-15 min de ventana, por encima del máximo de 6-10 min del
+// job. Un429/500/502/503/504/524/408 también se reintenta; el resto
+// (400/401/403/404/409/415/422…) es error funcional y se lanza al instante.
+const GENERATION_MAX_ATTEMPTS = 18;
+const GENERATION_RETRY_DELAY_MS = 45_000;
+const RETRY_AFTER_CAP_MS = 120_000;
+const RETRYABLE_STATUSES = new Set([408, 425, 429, 500, 502, 503, 504, 524]);
+
+export async function requestTenantInvoicePdf(payload, onAttempt, delay = sleep) {
+  let lastMessage = "";
+  for (let attempt = 1; attempt <= GENERATION_MAX_ATTEMPTS; attempt += 1) {
+    let response;
+    try {
+      response = await fetch(`${config.apiBaseUrl}/api/draft-invoices`, {
+        method: "POST",
+        credentials: "include",
+        headers: { accept: "application/pdf", "content-type": "application/json" },
+        body: JSON.stringify(payload),
+      });
+    } catch {
+      // Fallo de red del navegador: transitorio, cuenta como intento fallido.
+      lastMessage = "Sin conexión con el servidor.";
+      if (attempt === GENERATION_MAX_ATTEMPTS) break;
+      onAttempt?.(attempt + 1);
+      await delay(generationRetryDelay(undefined));
+      continue;
+    }
+    if (response.ok) {
+      await savePdf(response, "factura-inquilino.pdf");
+      return;
+    }
+    const errorPayload = await response.json().catch(() => ({}));
+    lastMessage = errorPayload.message || `No se pudo generar la factura de inquilino (${response.status}).`;
+    // Compatibilidad con un worker aún sin mapeo 425: el texto de busy del
+    // candado también marca el400 como transitorio mientras se despliega.
+    const busyText = response.status === 400 && /generaci[óo]n en curso|actualiz\w* en otra sesi[óo]n/i.test(lastMessage);
+    if (!RETRYABLE_STATUSES.has(response.status) && !busyText) throw new Error(lastMessage);
+    if (attempt === GENERATION_MAX_ATTEMPTS) break;
+    onAttempt?.(attempt + 1);
+    await delay(generationRetryDelay(response.headers.get("retry-after")));
   }
-  await savePdf(response, "factura-inquilino.pdf");
+  throw new Error(`La generación sigue sin completarse tras ${GENERATION_MAX_ATTEMPTS} intentos (~13 min de espera). ${lastMessage}`);
+}
+
+function generationRetryDelay(retryAfterHeader) {
+  const header = Number(retryAfterHeader);
+  const delay = Number.isFinite(header) && header > 0 ? header * 1000 : GENERATION_RETRY_DELAY_MS;
+  return Math.min(Math.max(delay, 10_000), RETRY_AFTER_CAP_MS);
+}
+
+function sleep(ms) {
+  return new Promise(resolve => setTimeout(resolve, ms));
 }
 
 export async function downloadDraftInvoicePdf(invoiceId) {
