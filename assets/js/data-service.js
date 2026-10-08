@@ -59,7 +59,9 @@ export async function requestTenantInvoicePdf(payload, onAttempt, delay = sleep)
     lastMessage = errorPayload.message || `No se pudo generar la factura de inquilino (${response.status}).`;
     // Compatibilidad con un worker aún sin mapeo 425: el texto de busy del
     // candado también marca el400 como transitorio mientras se despliega.
-    const busyText = response.status === 400 && /generaci[óo]n en curso|actualiz\w* en otra sesi[óo]n/i.test(lastMessage);
+    // Variantes reales: "…actualizando en otra sesión" y "…actualizando en
+    // una transacción realizada en otra sesión" (08/10/2026).
+    const busyText = response.status === 400 && /generaci[óo]n en curso|actualiz[^.]*otra sesi[óo]n/i.test(lastMessage);
     if (!RETRYABLE_STATUSES.has(response.status) && !busyText) throw new Error(lastMessage);
     if (attempt === GENERATION_MAX_ATTEMPTS) break;
     onAttempt?.(attempt + 1);

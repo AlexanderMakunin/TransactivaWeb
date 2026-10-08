@@ -89,6 +89,19 @@ test("treats the legacy400 busy text as transient while the worker rollout is pe
   assert.deepEqual(delays, [45_000]);
 });
 
+test("retries the real row-lock 400 captured on 2026-10-08", async () => {
+  const delays = [];
+  const calls = sequenceFetch([
+    Response.json({ error: "UPSTREAM_ERROR", message: "Business Central request failed with HTTP 400. Application_DialogException: No se pueden guardar los cambios en este momento, porque un registro de la tabla 'Cab. venta' se está actualizando en una transacción realizada en otra sesión. Vuelva a intentarlo más tarde." }, { status: 400 }),
+    new Response("%PDF-1.4", { status: 200, headers: { "content-type": "application/pdf" } }),
+  ]);
+
+  await requestTenantInvoicePdf(PAYLOAD, undefined, ms => { delays.push(ms); return Promise.resolve(); });
+
+  assert.equal(calls.length, 2);
+  assert.deepEqual(delays, [45_000]);
+});
+
 test("retries a network failure and reports progress", async () => {
   const delays = [];
   const progress = [];
